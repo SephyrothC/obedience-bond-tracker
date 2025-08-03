@@ -14,7 +14,365 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      habit_completions: {
+        Row: {
+          completed_at: string
+          habit_id: string
+          id: string
+          notes: string | null
+          points_earned: number
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          habit_id: string
+          id?: string
+          notes?: string | null
+          points_earned?: number
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          habit_id?: string
+          id?: string
+          notes?: string | null
+          points_earned?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "habit_completions_habit_id_fkey"
+            columns: ["habit_id"]
+            isOneToOne: false
+            referencedRelation: "habits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "habit_completions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      habits: {
+        Row: {
+          assigned_to: string
+          created_at: string
+          created_by: string
+          description: string | null
+          frequency: Database["public"]["Enums"]["habit_frequency"]
+          id: string
+          is_active: boolean
+          points_value: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          frequency?: Database["public"]["Enums"]["habit_frequency"]
+          id?: string
+          is_active?: boolean
+          points_value?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          frequency?: Database["public"]["Enums"]["habit_frequency"]
+          id?: string
+          is_active?: boolean
+          points_value?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "habits_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "habits_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          title: string
+          type: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          title: string
+          type?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          title?: string
+          type?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      partnerships: {
+        Row: {
+          created_at: string
+          dominant_id: string
+          id: string
+          status: string
+          submissive_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dominant_id: string
+          id?: string
+          status?: string
+          submissive_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dominant_id?: string
+          id?: string
+          status?: string
+          submissive_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partnerships_dominant_id_fkey"
+            columns: ["dominant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "partnerships_submissive_id_fkey"
+            columns: ["submissive_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      points_transactions: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          points: number
+          reason: string | null
+          reference_id: string | null
+          type: Database["public"]["Enums"]["transaction_type"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          points: number
+          reason?: string | null
+          reference_id?: string | null
+          type: Database["public"]["Enums"]["transaction_type"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          points?: number
+          reason?: string | null
+          reference_id?: string | null
+          type?: Database["public"]["Enums"]["transaction_type"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "points_transactions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "points_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          theme_color: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name: string
+          id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          theme_color?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string
+          id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          theme_color?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      punishments: {
+        Row: {
+          category: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          for_user: string
+          id: string
+          is_active: boolean
+          severity: string | null
+          title: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          for_user: string
+          id?: string
+          is_active?: boolean
+          severity?: string | null
+          title: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          for_user?: string
+          id?: string
+          is_active?: boolean
+          severity?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "punishments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "punishments_for_user_fkey"
+            columns: ["for_user"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      rewards: {
+        Row: {
+          category: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          for_user: string
+          id: string
+          is_active: boolean
+          points_cost: number
+          title: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          for_user: string
+          id?: string
+          is_active?: boolean
+          points_cost?: number
+          title: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          for_user?: string
+          id?: string
+          is_active?: boolean
+          points_cost?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rewards_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "rewards_for_user_fkey"
+            columns: ["for_user"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +381,9 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      habit_frequency: "daily" | "weekly" | "custom"
+      transaction_type: "reward" | "punishment" | "bonus" | "penalty"
+      user_role: "dominant" | "submissive" | "switch"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +510,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      habit_frequency: ["daily", "weekly", "custom"],
+      transaction_type: ["reward", "punishment", "bonus", "penalty"],
+      user_role: ["dominant", "submissive", "switch"],
+    },
   },
 } as const
