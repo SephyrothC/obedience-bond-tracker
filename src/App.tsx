@@ -7,6 +7,7 @@ import { AuthProvider } from "./hooks/useAuth";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Auth from "./pages/Auth";
 import Dashboard from "./components/Dashboard";
+import Habits from "./pages/Habits";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/habits" 
+              element={
+                <ProtectedRoute>
+                  <Habits />
                 </ProtectedRoute>
               } 
             />
