@@ -8,6 +8,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Auth from "./pages/Auth";
 import Dashboard from "./components/Dashboard";
 import Habits from "./pages/Habits";
+import CreateHabit from "./pages/CreateHabit";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Habits />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/habits/create" 
+              element={
+                <ProtectedRoute>
+                  <CreateHabit />
                 </ProtectedRoute>
               } 
             />
