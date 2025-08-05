@@ -148,6 +148,41 @@ export type Database = {
           },
         ]
       }
+      partnership_interactions: {
+        Row: {
+          created_at: string
+          created_by: string
+          details: Json | null
+          id: string
+          interaction_type: string
+          partnership_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          details?: Json | null
+          id?: string
+          interaction_type: string
+          partnership_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          details?: Json | null
+          id?: string
+          interaction_type?: string
+          partnership_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partnership_interactions_partnership_id_fkey"
+            columns: ["partnership_id"]
+            isOneToOne: false
+            referencedRelation: "partnerships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       partnerships: {
         Row: {
           created_at: string
@@ -240,30 +275,51 @@ export type Database = {
       }
       profiles: {
         Row: {
+          age: number | null
+          availability: string | null
           avatar_url: string | null
+          bio: string | null
           created_at: string
           display_name: string
+          experience_level: string | null
           id: string
+          interests: string[] | null
+          location: string | null
+          looking_for: string | null
           role: Database["public"]["Enums"]["user_role"]
           theme_color: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          age?: number | null
+          availability?: string | null
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           display_name: string
+          experience_level?: string | null
           id?: string
+          interests?: string[] | null
+          location?: string | null
+          looking_for?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           theme_color?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          age?: number | null
+          availability?: string | null
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string
           display_name?: string
+          experience_level?: string | null
           id?: string
+          interests?: string[] | null
+          location?: string | null
+          looking_for?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           theme_color?: string | null
           updated_at?: string
