@@ -14,6 +14,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Heart, UserPlus, Check, X, Crown, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import PartnerSearch from '@/components/partnership/PartnerSearch';
+import PartnershipStats from '@/components/partnership/PartnershipStats';
 
 const inviteSchema = z.object({
   email: z.string().email('Email invalide')
@@ -222,10 +224,14 @@ const Partnership = () => {
           </div>
         </div>
 
+        {/* Partnership Stats */}
+        <PartnershipStats />
+
         <Tabs defaultValue="active" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="active">Partenariats actifs</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="active">Actifs</TabsTrigger>
             <TabsTrigger value="pending">Demandes</TabsTrigger>
+            <TabsTrigger value="search">Rechercher</TabsTrigger>
             <TabsTrigger value="invite">Inviter</TabsTrigger>
           </TabsList>
 
@@ -364,13 +370,18 @@ const Partnership = () => {
             </Card>
           </TabsContent>
 
+          {/* Partner Search */}
+          <TabsContent value="search">
+            <PartnerSearch userRole={profile?.role || 'submissive'} />
+          </TabsContent>
+
           {/* Invite New Partners */}
           <TabsContent value="invite">
             <Card className="shadow-soft">
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <UserPlus className="w-5 h-5 text-primary" />
-                  <span>Inviter un partenaire</span>
+                  <span>Inviter par liste</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
