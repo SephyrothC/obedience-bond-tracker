@@ -314,34 +314,47 @@ const Partnership = () => {
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            {getPartnershipStatusBadge(partnership)}
-                            {canRespondToPartnership(partnership) && (
-                              <div className="flex space-x-2">
-                                <Button 
-                                  size="sm"
-                                  onClick={() => updatePartnershipMutation.mutate({
-                                    partnershipId: partnership.id,
-                                    status: 'accepted'
-                                  })}
-                                  disabled={updatePartnershipMutation.isPending}
-                                >
-                                  <Check className="w-4 h-4" />
-                                </Button>
-                                <Button 
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => updatePartnershipMutation.mutate({
-                                    partnershipId: partnership.id,
-                                    status: 'rejected'
-                                  })}
-                                  disabled={updatePartnershipMutation.isPending}
-                                >
-                                  <X className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
+          <div className="flex items-center space-x-2">
+            {getPartnershipStatusBadge(partnership)}
+            {canRespondToPartnership(partnership) && (
+              <div className="flex space-x-2">
+                <Button 
+                  size="sm"
+                  onClick={() => updatePartnershipMutation.mutate({
+                    partnershipId: partnership.id,
+                    status: 'accepted'
+                  })}
+                  disabled={updatePartnershipMutation.isPending}
+                >
+                  <Check className="w-4 h-4" />
+                </Button>
+                <Button 
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => updatePartnershipMutation.mutate({
+                    partnershipId: partnership.id,
+                    status: 'rejected'
+                  })}
+                  disabled={updatePartnershipMutation.isPending}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
+            {partnership.status === 'accepted' && (
+              <Button 
+                size="sm"
+                variant="outline"
+                onClick={() => updatePartnershipMutation.mutate({
+                  partnershipId: partnership.id,
+                  status: 'dissolved'
+                })}
+                disabled={updatePartnershipMutation.isPending}
+              >
+                Dissoudre
+              </Button>
+            )}
+          </div>
                         </div>
                       </div>
                     ))}

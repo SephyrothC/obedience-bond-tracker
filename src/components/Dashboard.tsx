@@ -8,6 +8,7 @@ import { Crown, User, LogOut } from 'lucide-react';
 import StatsCards from './dashboard/StatsCards';
 import HabitsSection from './dashboard/HabitsSection';
 import QuickActions from './dashboard/QuickActions';
+import PartnershipNotifications from './dashboard/PartnershipNotifications';
 
 interface Profile {
   id: string;
@@ -90,6 +91,27 @@ const Dashboard = () => {
     enabled: !!user
   });
 
+  const { data: partnerships } = useQuery({
+    queryKey: ['partnerships', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from('partnerships')
+        .select(`
+          *,
+          dominant_profile:profiles!partnerships_dominant_id_fkey(display_name, role),
+          submissive_profile:profiles!partnerships_submissive_id_fkey(display_name, role)
+        `)
+        .or(`dominant_id.eq.${user.id},submissive_id.eq.${user.id}`)
+        .eq('status', 'accepted');
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user
+  });
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -137,6 +159,9 @@ const Dashboard = () => {
           </Button>
         </div>
 
+        {/* Partnership Notifications */}
+        <PartnershipNotifications />
+
         {/* Stats Cards */}
         <StatsCards 
           pointsBalance={pointsBalance || 0}
@@ -150,6 +175,40 @@ const Dashboard = () => {
           userRole={profile?.role || 'submissive'}
           userId={user?.id || ''}
         />
+
+        {/* Partnership Status */}
+        {partnerships && partnerships.length > 0 && (
+          <div className="grid gap-4 md:gap-6">
+            <h2 className="text-xl font-semibold">Vos partenaires</h2>
+            <div className="grid gap-4">
+              {partnerships.map((partnership) => {
+                const isCurrentUserDominant = partnership.dominant_id === user?.id;
+                const partnerName = isCurrentUserDominant 
+                  ? partnership.submissive_profile?.display_name 
+                  : partnership.dominant_profile?.display_name;
+                const partnerRole = isCurrentUserDominant ? 'submissive' : 'dominant';
+                
+                return (
+                  <div key={partnership.id} className="p-4 rounded-lg border bg-accent/5 border-accent/20">
+                    <div className="flex items-center space-x-3">
+                      {partnerRole === 'dominant' ? (
+                        <Crown className="w-5 h-5 text-primary" />
+                      ) : (
+                        <User className="w-5 h-5 text-accent" />
+                      )}
+                      <div>
+                        <h3 className="font-medium">{partnerName}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {partnerRole === 'dominant' ? 'Votre Dominant(e)' : 'Votre Soumis(e)'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Quick Actions */}
         <QuickActions userRole={profile?.role || 'submissive'} />
