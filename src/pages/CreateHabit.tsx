@@ -152,7 +152,7 @@ const CreateHabit = () => {
               Créer une habitude
             </h1>
             <p className="text-muted-foreground">
-              Assignez une nouvelle tâche à vos soumis(es)
+              Créez une nouvelle habitude pour vous ou vos partenaires
             </p>
           </div>
         </div>
@@ -166,20 +166,7 @@ const CreateHabit = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {!submissives || submissives.length === 0 ? (
-              <div className="text-center py-8 space-y-4">
-                <Target className="w-16 h-16 text-muted-foreground mx-auto" />
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Aucun(e) soumis(e) connecté(e)</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Vous devez d'abord établir une relation avec un(e) soumis(e) pour créer des habitudes.
-                  </p>
-                  <Button onClick={() => navigate('/partnership')}>
-                    Gérer les relations
-                  </Button>
-                </div>
-              </div>
-            ) : (
+            {submissives !== undefined ? (
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                   <FormField
@@ -269,14 +256,17 @@ const CreateHabit = () => {
                     name="assigned_to"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Assigner à *</FormLabel>
+                         <FormLabel>Assigner à *</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Choisir un(e) soumis(e)" />
+                              <SelectValue placeholder="Choisir qui doit faire cette habitude" />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
+                           <SelectContent>
+                            <SelectItem value={user!.id}>
+                              Moi-même
+                            </SelectItem>
                             {submissives.map((submissive) => (
                               <SelectItem key={submissive.user_id} value={submissive.user_id}>
                                 {submissive.display_name}
@@ -316,8 +306,13 @@ const CreateHabit = () => {
                       )}
                     </Button>
                   </div>
-                </form>
+                 </form>
               </Form>
+            ) : (
+              <div className="text-center py-8">
+                <div className="w-8 h-8 border-2 border-current border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-muted-foreground">Chargement...</p>
+              </div>
             )}
           </CardContent>
         </Card>
