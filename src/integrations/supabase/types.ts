@@ -51,13 +51,6 @@ export type Database = {
             foreignKeyName: "habit_completions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "partner_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "habit_completions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -105,21 +98,7 @@ export type Database = {
             foreignKeyName: "habits_assigned_to_fkey"
             columns: ["assigned_to"]
             isOneToOne: false
-            referencedRelation: "partner_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "habits_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "habits_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "partner_stats"
             referencedColumns: ["user_id"]
           },
           {
@@ -160,13 +139,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "notifications_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "partner_stats"
-            referencedColumns: ["user_id"]
-          },
           {
             foreignKeyName: "notifications_user_id_fkey"
             columns: ["user_id"]
@@ -241,21 +213,7 @@ export type Database = {
             foreignKeyName: "partnerships_dominant_id_fkey"
             columns: ["dominant_id"]
             isOneToOne: false
-            referencedRelation: "partner_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "partnerships_dominant_id_fkey"
-            columns: ["dominant_id"]
-            isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "partnerships_submissive_id_fkey"
-            columns: ["submissive_id"]
-            isOneToOne: false
-            referencedRelation: "partner_stats"
             referencedColumns: ["user_id"]
           },
           {
@@ -303,21 +261,7 @@ export type Database = {
             foreignKeyName: "points_transactions_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "partner_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "points_transactions_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "points_transactions_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "partner_stats"
             referencedColumns: ["user_id"]
           },
           {
@@ -422,21 +366,7 @@ export type Database = {
             foreignKeyName: "punishments_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "partner_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "punishments_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "punishments_for_user_fkey"
-            columns: ["for_user"]
-            isOneToOne: false
-            referencedRelation: "partner_stats"
             referencedColumns: ["user_id"]
           },
           {
@@ -487,21 +417,7 @@ export type Database = {
             foreignKeyName: "rewards_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
-            referencedRelation: "partner_stats"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "rewards_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "rewards_for_user_fkey"
-            columns: ["for_user"]
-            isOneToOne: false
-            referencedRelation: "partner_stats"
             referencedColumns: ["user_id"]
           },
           {
@@ -515,20 +431,7 @@ export type Database = {
       }
     }
     Views: {
-      partner_stats: {
-        Row: {
-          completions_today: number | null
-          current_points: number | null
-          display_name: string | null
-          role: Database["public"]["Enums"]["user_role"] | null
-          total_completions: number | null
-          total_habits_assigned: number | null
-          total_points_earned: number | null
-          total_points_spent: number | null
-          user_id: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       [_ in never]: never
