@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Target, Gift, Zap, Heart, Plus, BarChart3 } from 'lucide-react';
+import { Target, Gift, Zap, Heart, Plus, BarChart3, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface QuickActionsProps {
@@ -66,14 +66,24 @@ const QuickActions = ({ userRole }: QuickActionsProps) => {
               <Plus className="w-4 h-4 mr-2" />
               Créer une nouvelle habitude
             </Button>
-            <Button 
-              onClick={() => navigate('/partner-stats')} 
-              variant="outline"
-              className="w-full"
-            >
-              <BarChart3 className="w-4 h-4 mr-2" />
-              Statistiques du partenaire
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button 
+                onClick={() => navigate('/partner-stats')} 
+                variant="outline"
+                className="w-full"
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Statistiques
+              </Button>
+              <Button 
+                onClick={() => navigate('/calendar')} 
+                variant="outline"
+                className="w-full"
+              >
+                <Calendar className="w-4 h-4 mr-2" />
+                Agenda
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>
