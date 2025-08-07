@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Target, Gift, Zap, Heart, Plus } from 'lucide-react';
+import { Target, Gift, Zap, Heart, Plus, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface QuickActionsProps {
@@ -58,13 +58,21 @@ const QuickActions = ({ userRole }: QuickActionsProps) => {
         </div>
         
         {userRole === 'dominant' && (
-          <div className="mt-4 pt-4 border-t">
+          <div className="mt-4 pt-4 border-t space-y-2">
             <Button 
               onClick={() => navigate('/habits/create')} 
               className="w-full"
             >
               <Plus className="w-4 h-4 mr-2" />
               Créer une nouvelle habitude
+            </Button>
+            <Button 
+              onClick={() => navigate('/partner-stats')} 
+              variant="outline"
+              className="w-full"
+            >
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Statistiques du partenaire
             </Button>
           </div>
         )}

@@ -10,6 +10,7 @@ import Dashboard from "./components/Dashboard";
 import Habits from "./pages/Habits";
 import CreateHabit from "./pages/CreateHabit";
 import Partnership from "./pages/Partnership";
+import PartnerStats from "./pages/PartnerStats";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -52,6 +53,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Partnership />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/partner-stats" 
+              element={
+                <ProtectedRoute>
+                  <PartnerStats />
                 </ProtectedRoute>
               } 
             />
