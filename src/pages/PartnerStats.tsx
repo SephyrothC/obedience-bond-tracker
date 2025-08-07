@@ -1,17 +1,44 @@
+import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Crown, User, Zap, Target, Calendar, CheckCircle, XCircle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ArrowLeft, Crown, User, Zap, Target, Calendar, CheckCircle, XCircle, Plus, Minus } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useToast } from '@/hooks/use-toast';
+
+const pointsSchema = z.object({
+  points: z.number().min(-999).max(999),
+  reason: z.string().min(1, 'La raison est obligatoire')
+});
+
+type PointsFormData = z.infer<typeof pointsSchema>;
 
 const PartnerStats = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const form = useForm<PointsFormData>({
+    resolver: zodResolver(pointsSchema),
+    defaultValues: {
+      points: 0,
+      reason: ''
+    }
+  });
 
   // Get user's profile to verify they are dominant
   const { data: profile } = useQuery({
@@ -124,6 +151,46 @@ const PartnerStats = () => {
     enabled: !!partnerships?.[0] && profile?.role === 'dominant'
   });
 
+  // Manual points adjustment mutation
+  const adjustPointsMutation = useMutation({
+    mutationFn: async ({ points, reason }: PointsFormData) => {
+      const partnership = partnerships?.[0];
+      if (!partnership) throw new Error('Aucun partenariat trouvé');
+
+      const { error } = await supabase
+        .from('points_transactions')
+        .insert({
+          user_id: partnership.submissive_id,
+          created_by: user!.id,
+          points,
+          reason,
+          type: points >= 0 ? 'bonus' : 'penalty'
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Points modifiés !",
+        description: "Les points ont été ajustés avec succès.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['partnerStats'] });
+      setIsDialogOpen(false);
+      form.reset();
+    },
+    onError: (error) => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier les points. Veuillez réessayer.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const onSubmit = (data: PointsFormData) => {
+    adjustPointsMutation.mutate(data);
+  };
+
   // Redirect if not dominant
   if (profile && profile.role !== 'dominant') {
     navigate('/');
@@ -186,7 +253,7 @@ const PartnerStats = () => {
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="shadow-soft">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Points totaux</CardTitle>
@@ -197,6 +264,92 @@ const PartnerStats = () => {
               <p className="text-xs text-muted-foreground">
                 Récompenses accumulées
               </p>
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="mt-2 w-full">
+                    <Zap className="w-3 h-3 mr-1" />
+                    Modifier
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Ajuster les points</DialogTitle>
+                  </DialogHeader>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="points"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Points à ajouter/retirer</FormLabel>
+                            <div className="flex space-x-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={() => field.onChange(Math.max(-999, field.value - 1))}
+                              >
+                                <Minus className="w-4 h-4" />
+                              </Button>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  {...field}
+                                  onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                  className="text-center"
+                                />
+                              </FormControl>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={() => field.onChange(Math.min(999, field.value + 1))}
+                              >
+                                <Plus className="w-4 h-4" />
+                              </Button>
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="reason"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Raison</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Pourquoi ajustez-vous les points ?"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div className="flex space-x-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setIsDialogOpen(false)}
+                          className="flex-1"
+                        >
+                          Annuler
+                        </Button>
+                        <Button
+                          type="submit"
+                          disabled={adjustPointsMutation.isPending}
+                          className="flex-1"
+                        >
+                          {adjustPointsMutation.isPending ? 'Modification...' : 'Confirmer'}
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
 
