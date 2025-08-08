@@ -12,6 +12,7 @@ import CreateHabit from "./pages/CreateHabit";
 import Partnership from "./pages/Partnership";
 import PartnerStats from "./pages/PartnerStats";
 import Calendar from "./pages/Calendar";
+import SharedTasks from "./pages/SharedTasks";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -70,6 +71,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Calendar />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/shared-tasks" 
+              element={
+                <ProtectedRoute>
+                  <SharedTasks />
                 </ProtectedRoute>
               } 
             />

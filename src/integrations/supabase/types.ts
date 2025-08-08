@@ -429,6 +429,86 @@ export type Database = {
           },
         ]
       }
+      shared_task_contributions: {
+        Row: {
+          contribution_amount: number
+          created_at: string
+          id: string
+          notes: string | null
+          shared_task_id: string
+          user_id: string
+        }
+        Insert: {
+          contribution_amount?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          shared_task_id: string
+          user_id: string
+        }
+        Update: {
+          contribution_amount?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          shared_task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shared_task_contributions_shared_task_id_fkey"
+            columns: ["shared_task_id"]
+            isOneToOne: false
+            referencedRelation: "shared_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shared_tasks: {
+        Row: {
+          completion_target: number | null
+          created_at: string
+          created_by: string
+          current_progress: number | null
+          description: string | null
+          due_date: string | null
+          id: string
+          is_active: boolean
+          partnership_id: string
+          points_value: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completion_target?: number | null
+          created_at?: string
+          created_by: string
+          current_progress?: number | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          is_active?: boolean
+          partnership_id: string
+          points_value?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completion_target?: number | null
+          created_at?: string
+          created_by?: string
+          current_progress?: number | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          is_active?: boolean
+          partnership_id?: string
+          points_value?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

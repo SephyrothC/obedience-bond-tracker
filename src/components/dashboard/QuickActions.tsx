@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Target, Gift, Zap, Heart, Plus, BarChart3, Calendar } from 'lucide-react';
+import { Target, Gift, Zap, Heart, Plus, BarChart3, Calendar, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface QuickActionsProps {
@@ -34,6 +34,12 @@ const QuickActions = ({ userRole }: QuickActionsProps) => {
       label: 'Partenaire',
       onClick: () => navigate('/partnership'),
       description: 'Gérer votre lien'
+    },
+    {
+      icon: Users,
+      label: 'Tâches partagées',
+      onClick: () => navigate('/shared-tasks'),
+      description: 'Travaillez ensemble'
     }
   ];
 
@@ -43,7 +49,7 @@ const QuickActions = ({ userRole }: QuickActionsProps) => {
         <CardTitle>Actions rapides</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {actions.map((action, index) => (
             <Button 
               key={index}
