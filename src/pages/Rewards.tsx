@@ -33,7 +33,7 @@ interface RewardPurchase {
   points_spent: number;
   purchased_at: string;
   status: 'pending' | 'granted' | 'used';
-  rewards: Reward;
+  reward?: Reward;
 }
 
 const Rewards = () => {
@@ -216,7 +216,7 @@ const Rewards = () => {
         .insert({
           user_id: user?.id,
           created_by: user?.id,
-          type: 'deduction',
+          type: 'penalty',
           points: -reward.points_cost,
           reason: `Achat de récompense: ${reward.title}`,
           reference_id: reward.id
@@ -481,7 +481,7 @@ const Rewards = () => {
           ) : (
             <div className="space-y-4">
               {purchasedRewards.map((purchase) => {
-                const IconComponent = getCategoryIcon(purchase.rewards.category);
+                const IconComponent = getCategoryIcon(purchase.reward?.category || 'pleasure');
                 
                 return (
                   <Card key={purchase.id}>
@@ -490,9 +490,9 @@ const Rewards = () => {
                         <div className="flex items-center space-x-4">
                           <IconComponent className="w-8 h-8 text-primary" />
                           <div>
-                            <h3 className="font-semibold">{purchase.rewards.title}</h3>
-                            {purchase.rewards.description && (
-                              <p className="text-sm text-muted-foreground">{purchase.rewards.description}</p>
+                            <h3 className="font-semibold">{purchase.reward?.title || 'Récompense supprimée'}</h3>
+                            {purchase.reward?.description && (
+                              <p className="text-sm text-muted-foreground">{purchase.reward.description}</p>
                             )}
                           </div>
                         </div>

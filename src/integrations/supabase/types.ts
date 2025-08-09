@@ -378,6 +378,33 @@ export type Database = {
           },
         ]
       }
+      reward_purchases: {
+        Row: {
+          id: string
+          points_spent: number
+          purchased_at: string
+          reward_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          points_spent: number
+          purchased_at?: string
+          reward_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          points_spent?: number
+          purchased_at?: string
+          reward_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       rewards: {
         Row: {
           category: string | null
