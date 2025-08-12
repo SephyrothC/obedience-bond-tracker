@@ -13,6 +13,8 @@ import Partnership from "./pages/Partnership";
 import PartnerStats from "./pages/PartnerStats";
 import Calendar from "./pages/Calendar";
 import SharedTasks from "./pages/SharedTasks";
+import Rewards from "./pages/Rewards";
+import Punishments from "./pages/Punishments";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -79,6 +81,22 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <SharedTasks />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/rewards" 
+              element={
+                <ProtectedRoute>
+                  <Rewards />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/punishments" 
+              element={
+                <ProtectedRoute>
+                  <Punishments />
                 </ProtectedRoute>
               } 
             />
