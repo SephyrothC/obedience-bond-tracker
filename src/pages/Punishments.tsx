@@ -7,12 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Zap, Plus, ArrowLeft, AlertTriangle, Clock, Ban } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Zap, Plus, ArrowLeft, AlertTriangle, Clock, Ban, User, Crown } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 interface Punishment {
   id: string;
@@ -62,17 +65,52 @@ const Punishments = () => {
     enabled: !!user?.id
   });
 
-  // Get submissives for dominant users
-  const { data: submissives } = useQuery({
-    queryKey: ['submissives', user?.id],
+  // Get user's partnerships
+  const { data: partnerships } = useQuery({
+    queryKey: ['partnerships', user?.id],
     queryFn: async () => {
-      if (profile?.role !== 'dominant') return [];
-      
       const { data, error } = await supabase
         .from('partnerships')
         .select(`
-          submissive_id,
-          profiles!partnerships_submissive_id_fkey(display_name, user_id)
+          *,
+          dominant_profile:profiles!partnerships_dominant_id_fkey(display_name, user_id),
+          submissive_profile:profiles!partnerships_submissive_id_fkey(display_name, user_id)
+        `)
+        .or(`dominant_id.eq.${user?.id},submissive_id.eq.${user?.id}`)
+        .eq('status', 'accepted');
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id
+  });
+
+  // Get available users for punishment creation (self + partners)
+  const { data: availableUsers } = useQuery({
+    queryKey: ['availableUsers', partnerships],
+    queryFn: async () => {
+      const users = [{ user_id: user?.id, display_name: 'Moi-même' }];
+      
+      if (partnerships) {
+        partnerships.forEach(partnership => {
+          if (partnership.dominant_id === user?.id) {
+            users.push({
+              user_id: partnership.submissive_id,
+              display_name: partnership.submissive_profile?.display_name || 'Partenaire'
+            });
+          } else {
+            users.push({
+              user_id: partnership.dominant_id,
+              display_name: partnership.dominant_profile?.display_name || 'Partenaire'
+            });
+          }
+        });
+      }
+      
+      return users;
+    },
+    enabled: !!partnerships
+  });id_fkey(display_name, user_id)
         `)
         .eq('dominant_id', user?.id)
         .eq('status', 'accepted');
@@ -83,19 +121,37 @@ const Punishments = () => {
     enabled: !!user?.id && profile?.role === 'dominant'
   });
 
-  // Get available punishments
+  // Get available punishments (for current user or created by current user)
   const { data: punishments, isLoading } = useQuery({
     queryKey: ['punishments', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('punishments')
         .select('*')
-        .eq('for_user', user?.id)
+        .or(`for_user.eq.${user?.id},created_by.eq.${user?.id}`)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
       return data as Punishment[];
+    },
+    enabled: !!user?.id
+  });
+
+  // Get recent punishment transactions
+  const { data: recentPunishments } = useQuery({
+    queryKey: ['recentPunishments', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('points_transactions')
+        .select('*')
+        .eq('user_id', user?.id)
+        .eq('type', 'penalty')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      if (error) throw error;
+      return data;
     },
     enabled: !!user?.id
   });
@@ -232,11 +288,13 @@ const Punishments = () => {
             Retour
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">Punitions</h1>
+            <h1 className="text-3xl font-bold gradient-passion bg-clip-text text-transparent">
+              Punitions
+            </h1>
             <p className="text-muted-foreground">
               {profile?.role === 'dominant' 
-                ? "Gérez les punitions pour vos soumis(es)"
-                : "Vos punitions possibles"
+                ? "Créez et appliquez des punitions"
+                : "Consultez les punitions possibles"
               }
             </p>
           </div>
@@ -308,10 +366,9 @@ const Punishments = () => {
                       <SelectValue placeholder="Sélectionner une personne" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={user?.id || ''}>Moi-même</SelectItem>
-                      {submissives?.map((sub) => (
-                        <SelectItem key={sub.submissive_id} value={sub.submissive_id}>
-                          {sub.profiles?.display_name}
+                      {availableUsers?.map((user) => (
+                        <SelectItem key={user.user_id} value={user.user_id}>
+                          {user.display_name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -359,47 +416,189 @@ const Punishments = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {punishments.map((punishment) => {
-            const IconComponent = getSeverityIcon(punishment.severity);
-            
-            return (
-              <Card key={punishment.id} className="border-l-4 border-l-destructive">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="flex items-center space-x-2">
-                      <IconComponent className="w-5 h-5" />
-                      <span>{punishment.title}</span>
-                    </span>
-                    <Badge variant="outline" className={getSeverityColor(punishment.severity)}>
-                      {getSeverityLabel(punishment.severity)}
-                    </Badge>
-                  </CardTitle>
-                  {punishment.description && (
-                    <p className="text-muted-foreground">{punishment.description}</p>
-                  )}
-                  <Badge variant="secondary" className="w-fit">
-                    {getCategoryLabel(punishment.category)}
-                  </Badge>
-                </CardHeader>
-                {profile?.role === 'dominant' && (
-                  <CardContent>
-                    <Button
-                      onClick={() => {
-                        setSelectedPunishment(punishment);
-                        setIsApplyDialogOpen(true);
-                      }}
-                      variant="destructive"
-                      className="w-full"
-                    >
-                      Appliquer la punition
-                    </Button>
-                  </CardContent>
-                )}
+        <Tabs defaultValue="available" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="available">
+              Disponibles ({punishments?.filter(p => p.for_user === user?.id).length || 0})
+            </TabsTrigger>
+            <TabsTrigger value="applied">
+              Historique ({recentPunishments?.length || 0})
+            </TabsTrigger>
+            <TabsTrigger value="created">
+              Créées ({punishments?.filter(p => p.created_by === user?.id).length || 0})
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Available Punishments */}
+          <TabsContent value="available">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {punishments?.filter(p => p.for_user === user?.id).map((punishment) => {
+                const IconComponent = getSeverityIcon(punishment.severity);
+                const canApply = profile?.role === 'dominant' || punishment.created_by === user?.id;
+                
+                return (
+                  <Card key={punishment.id} className="border-l-4 border-l-destructive">
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <span className="flex items-center space-x-2">
+                          <IconComponent className="w-5 h-5" />
+                          <span>{punishment.title}</span>
+                        </span>
+                        <Badge variant="outline" className={getSeverityColor(punishment.severity)}>
+                          {getSeverityLabel(punishment.severity)}
+                        </Badge>
+                      </CardTitle>
+                      {punishment.description && (
+                        <p className="text-muted-foreground text-sm">{punishment.description}</p>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <Badge variant="secondary" className="w-fit">
+                          {getCategoryLabel(punishment.category)}
+                        </Badge>
+                        <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                          {punishment.created_by === user?.id ? (
+                            <>
+                              <User className="w-3 h-3" />
+                              <span>Par moi</span>
+                            </>
+                          ) : (
+                            <>
+                              <Crown className="w-3 h-3" />
+                              <span>Par mon dominant</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    {canApply && (
+                      <CardContent>
+                        <Button
+                          onClick={() => {
+                            setSelectedPunishment(punishment);
+                            setIsApplyDialogOpen(true);
+                          }}
+                          variant="destructive"
+                          className="w-full"
+                          disabled={punishment.for_user !== user?.id}
+                        >
+                          {punishment.for_user === user?.id ? 'Appliquer la punition' : 'Non applicable'}
+                        </Button>
+                      </CardContent>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          </TabsContent>
+
+          {/* Applied Punishments History */}
+          <TabsContent value="applied">
+            {!recentPunishments || recentPunishments.length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Clock className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Aucune punition appliquée</h3>
+                  <p className="text-muted-foreground">
+                    L'historique des punitions apparaîtra ici
+                  </p>
+                </CardContent>
               </Card>
-            );
-          })}
-        </div>
+            ) : (
+              <div className="space-y-4">
+                {recentPunishments.map((transaction) => (
+                  <Card key={transaction.id}>
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-10 h-10 bg-destructive/10 rounded-full flex items-center justify-center">
+                            <Zap className="w-5 h-5 text-destructive" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-destructive">Punition appliquée</h3>
+                            <p className="text-sm text-muted-foreground">{transaction.reason}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {format(new Date(transaction.created_at), 'PPP à HH:mm', { locale: fr })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <Badge variant="destructive" className="mb-2">
+                            {transaction.points} pts
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Created Punishments */}
+          <TabsContent value="created">
+            {punishments?.filter(p => p.created_by === user?.id).length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Zap className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Aucune punition créée</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Créez des punitions pour maintenir la discipline
+                  </p>
+                  <Button onClick={() => setIsCreateDialogOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Créer une punition
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {punishments?.filter(p => p.created_by === user?.id).map((punishment) => {
+                  const IconComponent = getSeverityIcon(punishment.severity);
+                  const isForSelf = punishment.for_user === user?.id;
+                  
+                  return (
+                    <Card key={punishment.id} className="border-l-4 border-l-primary">
+                      <CardHeader>
+                        <CardTitle className="flex items-center justify-between">
+                          <span className="flex items-center space-x-2">
+                            <IconComponent className="w-5 h-5" />
+                            <span>{punishment.title}</span>
+                          </span>
+                          <Badge variant="outline" className={getSeverityColor(punishment.severity)}>
+                            {getSeverityLabel(punishment.severity)}
+                          </Badge>
+                        </CardTitle>
+                        {punishment.description && (
+                          <p className="text-muted-foreground text-sm">{punishment.description}</p>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <Badge variant="secondary" className="w-fit">
+                            {getCategoryLabel(punishment.category)}
+                          </Badge>
+                          <div className="flex items-center space-x-2">
+                            {isForSelf ? (
+                              <User className="w-4 h-4 text-muted-foreground" />
+                            ) : (
+                              <Crown className="w-4 h-4 text-primary" />
+                            )}
+                            <span className="text-sm text-muted-foreground">
+                              {isForSelf ? 'Pour moi' : 'Pour mon partenaire'}
+                            </span>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-xs text-muted-foreground">
+                          Créée le {format(new Date(punishment.created_at), 'PPP', { locale: fr })}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       )}
 
       {/* Apply Punishment Dialog */}
