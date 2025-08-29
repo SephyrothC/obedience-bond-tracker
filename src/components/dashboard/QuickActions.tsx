@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Target, Gift, Zap, Heart, Plus, BarChart3, Calendar, Users, Settings } from 'lucide-react';
+import { Target, Gift, Zap, Heart, Plus, BarChart3, Calendar, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface QuickActionsProps {
@@ -26,7 +26,11 @@ const QuickActions = ({ userRole }: QuickActionsProps) => {
     {
       icon: Zap,
       label: 'Punitions',
-      onClick: () => navigate('/punishments'),
+      onClick: () => {
+        // Temporairement désactivé - redirige vers rewards
+        navigate('/rewards');
+        // navigate('/punishments');
+      },
       description: userRole === 'dominant' ? 'Gérer les punitions' : 'Voir les sanctions'
     },
     {
@@ -90,6 +94,7 @@ const QuickActions = ({ userRole }: QuickActionsProps) => {
                 Agenda
               </Button>
             </div>
+            {/* Temporairement désactivé
             <Button 
               onClick={() => navigate('/manage-rewards')} 
               variant="outline"
@@ -98,6 +103,7 @@ const QuickActions = ({ userRole }: QuickActionsProps) => {
               <Settings className="w-4 h-4 mr-2" />
               Gérer les récompenses
             </Button>
+            */}
           </div>
         )}
       </CardContent>
