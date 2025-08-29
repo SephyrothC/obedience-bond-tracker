@@ -14,8 +14,9 @@ import PartnerStats from "./pages/PartnerStats";
 import Calendar from "./pages/Calendar";
 import SharedTasks from "./pages/SharedTasks";
 import Rewards from "./pages/Rewards";
-import ManageRewards from "./pages/ManageRewards";
-import Punishments from "./pages/Punishments";
+// Import conditionnel pour éviter les erreurs
+// import ManageRewards from "./pages/ManageRewards";
+// import Punishments from "./pages/Punishments";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -93,6 +94,7 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
+            {/* Routes temporairement désactivées pour éviter les erreurs
             <Route 
               path="/manage-rewards" 
               element={
@@ -109,6 +111,7 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
+            */}
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
