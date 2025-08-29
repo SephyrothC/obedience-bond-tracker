@@ -7,12 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Gift, Plus, ArrowLeft, Heart, Star, Coffee, ShoppingBag } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Gift, Plus, ArrowLeft, Heart, Star, Coffee, ShoppingBag, User, Crown, Settings } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 interface Reward {
   id: string;
@@ -69,16 +72,19 @@ const Rewards = () => {
     enabled: !!user?.id
   });
 
-  // Get user's partnership
-  const { data: partnership } = useQuery({
-    queryKey: ['partnership', user?.id],
+  // Get user's partnerships
+  const { data: partnerships } = useQuery({
+    queryKey: ['partnerships', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('partnerships')
-        .select('*')
+        .select(`
+          *,
+          dominant_profile:profiles!partnerships_dominant_id_fkey(display_name, user_id),
+          submissive_profile:profiles!partnerships_submissive_id_fkey(display_name, user_id)
+        `)
         .or(`dominant_id.eq.${user?.id},submissive_id.eq.${user?.id}`)
-        .eq('status', 'accepted')
-        .maybeSingle();
+        .eq('status', 'accepted');
       
       if (error) throw error;
       return data;
@@ -86,35 +92,41 @@ const Rewards = () => {
     enabled: !!user?.id
   });
 
-  // Get submissives for dominant users
-  const { data: submissives } = useQuery({
-    queryKey: ['submissives', user?.id],
+  // Get available users for reward creation (self + partners)
+  const { data: availableUsers } = useQuery({
+    queryKey: ['availableUsers', partnerships],
     queryFn: async () => {
-      if (profile?.role !== 'dominant') return [];
+      const users = [{ user_id: user?.id, display_name: 'Moi-même' }];
       
-      const { data, error } = await supabase
-        .from('partnerships')
-        .select(`
-          submissive_id,
-          profiles!partnerships_submissive_id_fkey(display_name, user_id)
-        `)
-        .eq('dominant_id', user?.id)
-        .eq('status', 'accepted');
+      if (partnerships) {
+        partnerships.forEach(partnership => {
+          if (partnership.dominant_id === user?.id) {
+            users.push({
+              user_id: partnership.submissive_id,
+              display_name: partnership.submissive_profile?.display_name || 'Partenaire'
+            });
+          } else {
+            users.push({
+              user_id: partnership.dominant_id,
+              display_name: partnership.dominant_profile?.display_name || 'Partenaire'
+            });
+          }
+        });
+      }
       
-      if (error) throw error;
-      return data;
+      return users;
     },
-    enabled: !!user?.id && profile?.role === 'dominant'
+    enabled: !!partnerships
   });
 
-  // Get available rewards
+  // Get available rewards (for current user or created by current user)
   const { data: rewards, isLoading } = useQuery({
     queryKey: ['rewards', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('rewards')
         .select('*')
-        .eq('for_user', user?.id)
+        .or(`for_user.eq.${user?.id},created_by.eq.${user?.id}`)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
       
@@ -270,6 +282,28 @@ const Rewards = () => {
     }
   };
 
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return 'En attente';
+      case 'granted': return 'Accordée';
+      case 'used': return 'Utilisée';
+      default: return status;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-500/10 text-yellow-600';
+      case 'granted': return 'bg-green-500/10 text-green-600';
+      case 'used': return 'bg-gray-500/10 text-gray-600';
+      default: return 'bg-gray-500/10 text-gray-600';
+    }
+  };
+
+  // Filter rewards that can be purchased by current user
+  const availableRewards = rewards?.filter(reward => reward.for_user === user?.id) || [];
+  const createdRewards = rewards?.filter(reward => reward.created_by === user?.id) || [];
+
   if (isLoading) {
     return <div className="container mx-auto py-8">Chargement...</div>;
   }
@@ -283,8 +317,15 @@ const Rewards = () => {
             Retour
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">Récompenses</h1>
-            <p className="text-muted-foreground">Échangez vos points contre des récompenses</p>
+            <h1 className="text-3xl font-bold gradient-passion bg-clip-text text-transparent">
+              Récompenses
+            </h1>
+            <p className="text-muted-foreground">
+              {profile?.role === 'dominant' 
+                ? "Créez et gérez les récompenses"
+                : "Échangez vos points contre des récompenses"
+              }
+            </p>
           </div>
         </div>
         <div className="flex items-center space-x-4">
@@ -293,142 +334,133 @@ const Rewards = () => {
             <p className="text-2xl font-bold text-primary">{userPoints || 0}</p>
           </div>
           {profile?.role === 'dominant' && (
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nouvelle récompense
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Créer une récompense</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
+            <Button onClick={() => navigate('/manage-rewards')} variant="outline">
+              <Settings className="w-4 h-4 mr-2" />
+              Gérer les achats
+            </Button>
+          )}
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Nouvelle récompense
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Créer une récompense</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="title">Titre</Label>
+                  <Input
+                    id="title"
+                    value={newReward.title}
+                    onChange={(e) => setNewReward({ ...newReward, title: e.target.value })}
+                    placeholder="Titre de la récompense"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={newReward.description}
+                    onChange={(e) => setNewReward({ ...newReward, description: e.target.value })}
+                    placeholder="Description de la récompense"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="title">Titre</Label>
+                    <Label htmlFor="points">Coût en points</Label>
                     <Input
-                      id="title"
-                      value={newReward.title}
-                      onChange={(e) => setNewReward({ ...newReward, title: e.target.value })}
-                      placeholder="Titre de la récompense"
+                      id="points"
+                      type="number"
+                      min="1"
+                      value={newReward.points_cost}
+                      onChange={(e) => setNewReward({ ...newReward, points_cost: parseInt(e.target.value) || 1 })}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      value={newReward.description}
-                      onChange={(e) => setNewReward({ ...newReward, description: e.target.value })}
-                      placeholder="Description de la récompense"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="points">Coût en points</Label>
-                      <Input
-                        id="points"
-                        type="number"
-                        min="1"
-                        value={newReward.points_cost}
-                        onChange={(e) => setNewReward({ ...newReward, points_cost: parseInt(e.target.value) || 1 })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="category">Catégorie</Label>
-                      <Select value={newReward.category} onValueChange={(value) => setNewReward({ ...newReward, category: value })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pleasure">Plaisir</SelectItem>
-                          <SelectItem value="experience">Expérience</SelectItem>
-                          <SelectItem value="material">Matériel</SelectItem>
-                          <SelectItem value="relaxation">Relaxation</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="for_user">Pour qui</Label>
-                    <Select value={newReward.for_user} onValueChange={(value) => setNewReward({ ...newReward, for_user: value })}>
+                    <Label htmlFor="category">Catégorie</Label>
+                    <Select value={newReward.category} onValueChange={(value) => setNewReward({ ...newReward, category: value })}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Sélectionner un bénéficiaire" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={user?.id || ''}>Moi-même</SelectItem>
-                        {submissives?.map((sub) => (
-                          <SelectItem key={sub.submissive_id} value={sub.submissive_id}>
-                            {sub.profiles?.display_name}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="pleasure">Plaisir</SelectItem>
+                        <SelectItem value="experience">Expérience</SelectItem>
+                        <SelectItem value="material">Matériel</SelectItem>
+                        <SelectItem value="relaxation">Relaxation</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsCreateDialogOpen(false)}
-                      className="flex-1"
-                    >
-                      Annuler
-                    </Button>
-                    <Button
-                      onClick={handleCreateReward}
-                      disabled={createRewardMutation.isPending || !newReward.title.trim()}
-                      className="flex-1"
-                    >
-                      {createRewardMutation.isPending ? "Création..." : "Créer"}
-                    </Button>
-                  </div>
                 </div>
-              </DialogContent>
-            </Dialog>
-          )}
+                <div>
+                  <Label htmlFor="for_user">Pour qui</Label>
+                  <Select value={newReward.for_user} onValueChange={(value) => setNewReward({ ...newReward, for_user: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner un bénéficiaire" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableUsers?.map((user) => (
+                        <SelectItem key={user.user_id} value={user.user_id}>
+                          {user.display_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsCreateDialogOpen(false)}
+                    className="flex-1"
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    onClick={handleCreateReward}
+                    disabled={createRewardMutation.isPending || !newReward.title.trim()}
+                    className="flex-1"
+                  >
+                    {createRewardMutation.isPending ? "Création..." : "Créer"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
-      <div className="flex space-x-1 bg-muted p-1 rounded-lg w-fit">
-        <Button
-          variant={selectedTab === 'available' ? 'default' : 'ghost'}
-          onClick={() => setSelectedTab('available')}
-          size="sm"
-        >
-          Disponibles
-        </Button>
-        <Button
-          variant={selectedTab === 'purchased' ? 'default' : 'ghost'}
-          onClick={() => setSelectedTab('purchased')}
-          size="sm"
-        >
-          Mes achats
-        </Button>
-      </div>
+      <Tabs defaultValue="available" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="available">Disponibles ({availableRewards.length})</TabsTrigger>
+          <TabsTrigger value="purchased">Mes achats ({purchasedRewards?.length || 0})</TabsTrigger>
+          <TabsTrigger value="created">Créées ({createdRewards.length})</TabsTrigger>
+        </TabsList>
 
-      {selectedTab === 'available' && (
-        <>
-          {!rewards || rewards.length === 0 ? (
+        {/* Available Rewards */}
+        <TabsContent value="available">
+          {availableRewards.length === 0 ? (
             <Card>
               <CardContent className="text-center py-12">
                 <Gift className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">Aucune récompense disponible</h3>
                 <p className="text-muted-foreground mb-4">
                   {profile?.role === 'dominant' 
-                    ? "Créez des récompenses pour motiver vos soumis(es)"
-                    : "Demandez à votre Dominant(e) de créer des récompenses"
+                    ? "Créez des récompenses pour vous motiver ou motiver vos partenaires"
+                    : "Aucune récompense n'est disponible pour le moment"
                   }
                 </p>
-                {profile?.role === 'dominant' && (
-                  <Button onClick={() => setIsCreateDialogOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Créer une récompense
-                  </Button>
-                )}
+                <Button onClick={() => setIsCreateDialogOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Créer une récompense
+                </Button>
               </CardContent>
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {rewards.map((reward) => {
+              {availableRewards.map((reward) => {
                 const IconComponent = getCategoryIcon(reward.category);
                 const canAfford = (userPoints || 0) >= reward.points_cost;
                 
@@ -445,7 +477,7 @@ const Rewards = () => {
                         </Badge>
                       </CardTitle>
                       {reward.description && (
-                        <p className="text-muted-foreground">{reward.description}</p>
+                        <p className="text-muted-foreground text-sm">{reward.description}</p>
                       )}
                     </CardHeader>
                     <CardContent>
@@ -463,11 +495,10 @@ const Rewards = () => {
               })}
             </div>
           )}
-        </>
-      )}
+        </TabsContent>
 
-      {selectedTab === 'purchased' && (
-        <>
+        {/* Purchased Rewards */}
+        <TabsContent value="purchased">
           {!purchasedRewards || purchasedRewards.length === 0 ? (
             <Card>
               <CardContent className="text-center py-12">
@@ -494,25 +525,18 @@ const Rewards = () => {
                             {purchase.reward?.description && (
                               <p className="text-sm text-muted-foreground">{purchase.reward.description}</p>
                             )}
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Achetée le {format(new Date(purchase.purchased_at), 'PPP à HH:mm', { locale: fr })}
+                            </p>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
                           <Badge variant="outline">
                             -{purchase.points_spent} pts
                           </Badge>
-                          <Badge 
-                            className={
-                              purchase.status === 'pending' ? 'bg-yellow-500/10 text-yellow-600' :
-                              purchase.status === 'granted' ? 'bg-green-500/10 text-green-600' :
-                              'bg-gray-500/10 text-gray-600'
-                            }
-                          >
-                            {purchase.status === 'pending' ? 'En attente' :
-                             purchase.status === 'granted' ? 'Accordée' : 'Utilisée'}
+                          <Badge className={getStatusColor(purchase.status)}>
+                            {getStatusLabel(purchase.status)}
                           </Badge>
-                          <span className="text-sm text-muted-foreground">
-                            {new Date(purchase.purchased_at).toLocaleDateString()}
-                          </span>
                         </div>
                       </div>
                     </CardContent>
@@ -521,8 +545,68 @@ const Rewards = () => {
               })}
             </div>
           )}
-        </>
-      )}
+        </TabsContent>
+
+        {/* Created Rewards */}
+        <TabsContent value="created">
+          {createdRewards.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-12">
+                <Gift className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Aucune récompense créée</h3>
+                <p className="text-muted-foreground mb-4">
+                  Créez des récompenses pour vous ou vos partenaires
+                </p>
+                <Button onClick={() => setIsCreateDialogOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Créer une récompense
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {createdRewards.map((reward) => {
+                const IconComponent = getCategoryIcon(reward.category);
+                const isForSelf = reward.for_user === user?.id;
+                
+                return (
+                  <Card key={reward.id} className="border-l-4 border-l-primary">
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <span className="flex items-center space-x-2">
+                          <IconComponent className="w-5 h-5" />
+                          <span>{reward.title}</span>
+                        </span>
+                        <Badge variant="outline" className={getCategoryColor(reward.category)}>
+                          {reward.points_cost} pts
+                        </Badge>
+                      </CardTitle>
+                      {reward.description && (
+                        <p className="text-muted-foreground text-sm">{reward.description}</p>
+                      )}
+                      <div className="flex items-center space-x-2">
+                        {isForSelf ? (
+                          <User className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <Crown className="w-4 h-4 text-primary" />
+                        )}
+                        <span className="text-sm text-muted-foreground">
+                          {isForSelf ? 'Pour moi' : 'Pour mon partenaire'}
+                        </span>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-xs text-muted-foreground">
+                        Créée le {format(new Date(reward.created_at), 'PPP', { locale: fr })}
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
