@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Zap, Plus, ArrowLeft, AlertTriangle, Clock, Ban, User, Crown } from 'lucide-react';
+import { Zap, Plus, ArrowLeft, AlertTriangle, Clock, Ban, User, Crown, CheckCircle, XCircle } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -27,6 +27,21 @@ interface Punishment {
   for_user: string;
   is_active: boolean;
   created_at: string;
+  status: string;
+}
+
+interface PunishmentAssignment {
+  id: string;
+  punishment_id: string;
+  assigned_to: string;
+  assigned_by: string;
+  assigned_at: string;
+  status: 'assigned' | 'completed' | 'validated';
+  notes?: string;
+  completed_at?: string;
+  validated_by?: string;
+  validated_at?: string;
+  punishment?: Punishment;
 }
 
 const Punishments = () => {
@@ -35,10 +50,9 @@ const Punishments = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isApplyDialogOpen, setIsApplyDialogOpen] = useState(false);
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [selectedPunishment, setSelectedPunishment] = useState<Punishment | null>(null);
-  const [pointsToDeduct, setPointsToDeduct] = useState(0);
-  const [punishmentReason, setPunishmentReason] = useState('');
+  const [assignmentNotes, setAssignmentNotes] = useState('');
 
   // Form state for new punishment
   const [newPunishment, setNewPunishment] = useState({
@@ -85,32 +99,15 @@ const Punishments = () => {
     enabled: !!user?.id
   });
 
-  // Get available users for punishment creation (self + partners)
-  const { data: availableUsers } = useQuery({
-    queryKey: ['availableUsers', partnerships],
+  // Get submissive partners for dominants
+  const { data: submissivePartners } = useQuery({
+    queryKey: ['submissivePartners', user?.id],
     queryFn: async () => {
-      const users = [{ user_id: user?.id, display_name: 'Moi-même' }];
-      
-      if (partnerships) {
-        partnerships.forEach(partnership => {
-          if (partnership.dominant_id === user?.id) {
-            users.push({
-              user_id: partnership.submissive_id,
-              display_name: partnership.submissive_profile?.display_name || 'Partenaire'
-            });
-          } else {
-            users.push({
-              user_id: partnership.dominant_id,
-              display_name: partnership.dominant_profile?.display_name || 'Partenaire'
-            });
-          }
-        });
-      }
-      
-      return users;
-    },
-    enabled: !!partnerships
-  });id_fkey(display_name, user_id)
+      const { data, error } = await supabase
+        .from('partnerships')
+        .select(`
+          submissive_id,
+          submissive_profile:profiles!partnerships_submissive_id_fkey(display_name, user_id)
         `)
         .eq('dominant_id', user?.id)
         .eq('status', 'accepted');
@@ -121,7 +118,7 @@ const Punishments = () => {
     enabled: !!user?.id && profile?.role === 'dominant'
   });
 
-  // Get available punishments (for current user or created by current user)
+  // Get available punishments (created by dominants for their partners)
   const { data: punishments, isLoading } = useQuery({
     queryKey: ['punishments', user?.id],
     queryFn: async () => {
@@ -138,20 +135,21 @@ const Punishments = () => {
     enabled: !!user?.id
   });
 
-  // Get recent punishment transactions
-  const { data: recentPunishments } = useQuery({
-    queryKey: ['recentPunishments', user?.id],
+  // Get punishment assignments
+  const { data: punishmentAssignments } = useQuery({
+    queryKey: ['punishmentAssignments', user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('points_transactions')
-        .select('*')
-        .eq('user_id', user?.id)
-        .eq('type', 'penalty')
-        .order('created_at', { ascending: false })
-        .limit(10);
+        .from('punishment_assignments')
+        .select(`
+          *,
+          punishment:punishments(*)
+        `)
+        .or(`assigned_to.eq.${user?.id},assigned_by.eq.${user?.id}`)
+        .order('assigned_at', { ascending: false });
       
       if (error) throw error;
-      return data;
+      return data as PunishmentAssignment[];
     },
     enabled: !!user?.id
   });
@@ -164,7 +162,7 @@ const Punishments = () => {
         .insert({
           ...punishmentData,
           created_by: user?.id,
-          for_user: punishmentData.for_user || user?.id
+          for_user: punishmentData.for_user
         });
       
       if (error) throw error;
@@ -187,54 +185,109 @@ const Punishments = () => {
     }
   });
 
-  // Apply punishment mutation
-  const applyPunishmentMutation = useMutation({
-    mutationFn: async ({ punishment, points, reason }: { punishment: Punishment; points: number; reason: string }) => {
-      // Create points transaction for penalty
+  // Assign punishment mutation
+  const assignPunishmentMutation = useMutation({
+    mutationFn: async ({ punishment, notes }: { punishment: Punishment; notes: string }) => {
       const { error } = await supabase
-        .from('points_transactions')
+        .from('punishment_assignments')
         .insert({
-          user_id: punishment.for_user,
-          created_by: user?.id,
-          type: 'penalty',
-          points: -Math.abs(points),
-          reason: `Punition appliquée: ${punishment.title} - ${reason}`,
-          reference_id: punishment.id
+          punishment_id: punishment.id,
+          assigned_to: punishment.for_user,
+          assigned_by: user?.id,
+          notes: notes || undefined,
+          status: 'assigned'
         });
       
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['points'] });
-      setIsApplyDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['punishmentAssignments'] });
+      setIsAssignDialogOpen(false);
       setSelectedPunishment(null);
-      setPointsToDeduct(0);
-      setPunishmentReason('');
+      setAssignmentNotes('');
       toast({
-        title: "Punition appliquée !",
-        description: "La punition a été appliquée avec succès.",
+        title: "Punition assignée !",
+        description: "La punition a été assignée avec succès.",
       });
     },
     onError: () => {
       toast({
         title: "Erreur",
-        description: "Impossible d'appliquer la punition.",
+        description: "Impossible d'assigner la punition.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Complete punishment mutation (for submissives)
+  const completePunishmentMutation = useMutation({
+    mutationFn: async (assignmentId: string) => {
+      const { error } = await supabase
+        .from('punishment_assignments')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', assignmentId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['punishmentAssignments'] });
+      toast({
+        title: "Punition marquée comme terminée !",
+        description: "Votre dominant pourra maintenant la valider.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de marquer la punition comme terminée.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Validate punishment mutation (for dominants)
+  const validatePunishmentMutation = useMutation({
+    mutationFn: async (assignmentId: string) => {
+      const { error } = await supabase
+        .from('punishment_assignments')
+        .update({
+          status: 'validated',
+          validated_by: user?.id,
+          validated_at: new Date().toISOString()
+        })
+        .eq('id', assignmentId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['punishmentAssignments'] });
+      toast({
+        title: "Punition validée !",
+        description: "La punition a été validée avec succès.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de valider la punition.",
         variant: "destructive",
       });
     }
   });
 
   const handleCreatePunishment = () => {
-    if (!newPunishment.title.trim()) return;
+    if (!newPunishment.title.trim() || !newPunishment.for_user) return;
     createPunishmentMutation.mutate(newPunishment);
   };
 
-  const handleApplyPunishment = () => {
-    if (!selectedPunishment || pointsToDeduct <= 0 || !punishmentReason.trim()) return;
-    applyPunishmentMutation.mutate({
+  const handleAssignPunishment = () => {
+    if (!selectedPunishment) return;
+    assignPunishmentMutation.mutate({
       punishment: selectedPunishment,
-      points: pointsToDeduct,
-      reason: punishmentReason
+      notes: assignmentNotes
     });
   };
 
@@ -275,6 +328,24 @@ const Punishments = () => {
     }
   };
 
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'assigned': return 'Assignée';
+      case 'completed': return 'Terminée';
+      case 'validated': return 'Validée';
+      default: return status;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'assigned': return 'bg-yellow-500/10 text-yellow-600';
+      case 'completed': return 'bg-blue-500/10 text-blue-600';
+      case 'validated': return 'bg-green-500/10 text-green-600';
+      default: return 'bg-gray-500/10 text-gray-600';
+    }
+  };
+
   if (isLoading) {
     return <div className="container mx-auto py-8">Chargement...</div>;
   }
@@ -293,8 +364,8 @@ const Punishments = () => {
             </h1>
             <p className="text-muted-foreground">
               {profile?.role === 'dominant' 
-                ? "Créez et appliquez des punitions"
-                : "Consultez les punitions possibles"
+                ? "Créez et gérez les punitions pour vos soumis(es)"
+                : "Consultez vos punitions assignées"
               }
             </p>
           </div>
@@ -363,12 +434,12 @@ const Punishments = () => {
                   <Label htmlFor="for_user">Pour qui</Label>
                   <Select value={newPunishment.for_user} onValueChange={(value) => setNewPunishment({ ...newPunishment, for_user: value })}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner une personne" />
+                      <SelectValue placeholder="Sélectionner un(e) soumis(e)" />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableUsers?.map((user) => (
-                        <SelectItem key={user.user_id} value={user.user_id}>
-                          {user.display_name}
+                      {submissivePartners?.map((partner) => (
+                        <SelectItem key={partner.submissive_id} value={partner.submissive_id}>
+                          {partner.submissive_profile?.display_name || 'Soumis(e)'}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -384,7 +455,7 @@ const Punishments = () => {
                   </Button>
                   <Button
                     onClick={handleCreatePunishment}
-                    disabled={createPunishmentMutation.isPending || !newPunishment.title.trim()}
+                    disabled={createPunishmentMutation.isPending || !newPunishment.title.trim() || !newPunishment.for_user}
                     className="flex-1"
                   >
                     {createPunishmentMutation.isPending ? "Création..." : "Créer"}
@@ -396,48 +467,118 @@ const Punishments = () => {
         )}
       </div>
 
-      {!punishments || punishments.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <Zap className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Aucune punition disponible</h3>
-            <p className="text-muted-foreground mb-4">
-              {profile?.role === 'dominant' 
-                ? "Créez des punitions pour maintenir la discipline"
-                : "Aucune punition n'a été définie"
-              }
-            </p>
-            {profile?.role === 'dominant' && (
-              <Button onClick={() => setIsCreateDialogOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Créer une punition
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <Tabs defaultValue="available" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="available">
-              Disponibles ({punishments?.filter(p => p.for_user === user?.id).length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="applied">
-              Historique ({recentPunishments?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="created">
-              Créées ({punishments?.filter(p => p.created_by === user?.id).length || 0})
-            </TabsTrigger>
-          </TabsList>
+      <Tabs defaultValue="assignments" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="assignments">
+            Assignations ({punishmentAssignments?.length || 0})
+          </TabsTrigger>
+          <TabsTrigger value="available">
+            Disponibles ({punishments?.filter(p => p.created_by === user?.id).length || 0})
+          </TabsTrigger>
+          <TabsTrigger value="created">
+            Créées ({punishments?.filter(p => p.created_by === user?.id).length || 0})
+          </TabsTrigger>
+        </TabsList>
 
-          {/* Available Punishments */}
-          <TabsContent value="available">
+        {/* Punishment Assignments */}
+        <TabsContent value="assignments">
+          {!punishmentAssignments || punishmentAssignments.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-12">
+                <Zap className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Aucune assignation</h3>
+                <p className="text-muted-foreground">
+                  {profile?.role === 'dominant' 
+                    ? "Assignez des punitions à vos soumis(es)"
+                    : "Aucune punition ne vous a été assignée"
+                  }
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {punishments?.filter(p => p.for_user === user?.id).map((punishment) => {
-                const IconComponent = getSeverityIcon(punishment.severity);
-                const canApply = profile?.role === 'dominant' || punishment.created_by === user?.id;
+              {punishmentAssignments.map((assignment) => {
+                const IconComponent = getSeverityIcon(assignment.punishment?.severity || 'mild');
+                const isAssignedToMe = assignment.assigned_to === user?.id;
+                const isAssignedByMe = assignment.assigned_by === user?.id;
                 
                 return (
-                  <Card key={punishment.id} className="border-l-4 border-l-destructive">
+                  <Card key={assignment.id} className="border-l-4 border-l-destructive">
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <span className="flex items-center space-x-2">
+                          <IconComponent className="w-5 h-5" />
+                          <span>{assignment.punishment?.title}</span>
+                        </span>
+                        <div className="flex space-x-2">
+                          <Badge variant="outline" className={getSeverityColor(assignment.punishment?.severity || 'mild')}>
+                            {getSeverityLabel(assignment.punishment?.severity || 'mild')}
+                          </Badge>
+                          <Badge className={getStatusColor(assignment.status)}>
+                            {getStatusLabel(assignment.status)}
+                          </Badge>
+                        </div>
+                      </CardTitle>
+                      {assignment.punishment?.description && (
+                        <p className="text-muted-foreground text-sm">{assignment.punishment.description}</p>
+                      )}
+                      {assignment.notes && (
+                        <p className="text-sm bg-muted p-2 rounded">
+                          <strong>Notes :</strong> {assignment.notes}
+                        </p>
+                      )}
+                      <div className="text-xs text-muted-foreground">
+                        Assignée le {format(new Date(assignment.assigned_at), 'PPp', { locale: fr })}
+                        {assignment.completed_at && (
+                          <div>Terminée le {format(new Date(assignment.completed_at), 'PPp', { locale: fr })}</div>
+                        )}
+                        {assignment.validated_at && (
+                          <div>Validée le {format(new Date(assignment.validated_at), 'PPp', { locale: fr })}</div>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex space-x-2">
+                        {isAssignedToMe && assignment.status === 'assigned' && (
+                          <Button 
+                            onClick={() => completePunishmentMutation.mutate(assignment.id)}
+                            disabled={completePunishmentMutation.isPending}
+                            className="flex-1"
+                            size="sm"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Marquer terminée
+                          </Button>
+                        )}
+                        {isAssignedByMe && assignment.status === 'completed' && (
+                          <Button 
+                            onClick={() => validatePunishmentMutation.mutate(assignment.id)}
+                            disabled={validatePunishmentMutation.isPending}
+                            className="flex-1"
+                            size="sm"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Valider
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Available Punishments (for assignment) */}
+        <TabsContent value="available">
+          {profile?.role === 'dominant' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {punishments?.filter(p => p.created_by === user?.id).map((punishment) => {
+                const IconComponent = getSeverityIcon(punishment.severity);
+                
+                return (
+                  <Card key={punishment.id} className="border-l-4 border-l-primary">
                     <CardHeader>
                       <CardTitle className="flex items-center justify-between">
                         <span className="flex items-center space-x-2">
@@ -455,214 +596,120 @@ const Punishments = () => {
                         <Badge variant="secondary" className="w-fit">
                           {getCategoryLabel(punishment.category)}
                         </Badge>
-                        <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                          {punishment.created_by === user?.id ? (
-                            <>
-                              <User className="w-3 h-3" />
-                              <span>Par moi</span>
-                            </>
-                          ) : (
-                            <>
-                              <Crown className="w-3 h-3" />
-                              <span>Par mon dominant</span>
-                            </>
-                          )}
-                        </div>
                       </div>
                     </CardHeader>
-                    {canApply && (
-                      <CardContent>
-                        <Button
-                          onClick={() => {
-                            setSelectedPunishment(punishment);
-                            setIsApplyDialogOpen(true);
-                          }}
-                          variant="destructive"
-                          className="w-full"
-                          disabled={punishment.for_user !== user?.id}
-                        >
-                          {punishment.for_user === user?.id ? 'Appliquer la punition' : 'Non applicable'}
-                        </Button>
-                      </CardContent>
-                    )}
+                    <CardContent>
+                      <Button 
+                        onClick={() => {
+                          setSelectedPunishment(punishment);
+                          setIsAssignDialogOpen(true);
+                        }}
+                        className="w-full"
+                        size="sm"
+                      >
+                        <Zap className="w-4 h-4 mr-2" />
+                        Assigner
+                      </Button>
+                    </CardContent>
                   </Card>
                 );
               })}
             </div>
-          </TabsContent>
+          ) : (
+            <Card>
+              <CardContent className="text-center py-12">
+                <Ban className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Accès restreint</h3>
+                <p className="text-muted-foreground">
+                  Seuls les dominants peuvent voir les punitions disponibles.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
-          {/* Applied Punishments History */}
-          <TabsContent value="applied">
-            {!recentPunishments || recentPunishments.length === 0 ? (
-              <Card>
-                <CardContent className="text-center py-12">
-                  <Clock className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Aucune punition appliquée</h3>
-                  <p className="text-muted-foreground">
-                    L'historique des punitions apparaîtra ici
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {recentPunishments.map((transaction) => (
-                  <Card key={transaction.id}>
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="w-10 h-10 bg-destructive/10 rounded-full flex items-center justify-center">
-                            <Zap className="w-5 h-5 text-destructive" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-destructive">Punition appliquée</h3>
-                            <p className="text-sm text-muted-foreground">{transaction.reason}</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {format(new Date(transaction.created_at), 'PPP à HH:mm', { locale: fr })}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <Badge variant="destructive" className="mb-2">
-                            {transaction.points} pts
-                          </Badge>
-                        </div>
+        {/* Created Punishments */}
+        <TabsContent value="created">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {punishments?.filter(p => p.created_by === user?.id).map((punishment) => {
+              const IconComponent = getSeverityIcon(punishment.severity);
+              
+              return (
+                <Card key={punishment.id} className="border-l-4 border-l-muted">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center space-x-2">
+                        <IconComponent className="w-5 h-5" />
+                        <span>{punishment.title}</span>
+                      </span>
+                      <Badge variant="outline" className={getSeverityColor(punishment.severity)}>
+                        {getSeverityLabel(punishment.severity)}
+                      </Badge>
+                    </CardTitle>
+                    {punishment.description && (
+                      <p className="text-muted-foreground text-sm">{punishment.description}</p>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <Badge variant="secondary" className="w-fit">
+                        {getCategoryLabel(punishment.category)}
+                      </Badge>
+                      <div className="text-xs text-muted-foreground">
+                        Créée le {format(new Date(punishment.created_at), 'PPp', { locale: fr })}
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
+                    </div>
+                  </CardHeader>
+                </Card>
+              );
+            })}
+          </div>
+        </TabsContent>
+      </Tabs>
 
-          {/* Created Punishments */}
-          <TabsContent value="created">
-            {punishments?.filter(p => p.created_by === user?.id).length === 0 ? (
-              <Card>
-                <CardContent className="text-center py-12">
-                  <Zap className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Aucune punition créée</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Créez des punitions pour maintenir la discipline
-                  </p>
-                  <Button onClick={() => setIsCreateDialogOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Créer une punition
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {punishments?.filter(p => p.created_by === user?.id).map((punishment) => {
-                  const IconComponent = getSeverityIcon(punishment.severity);
-                  const isForSelf = punishment.for_user === user?.id;
-                  
-                  return (
-                    <Card key={punishment.id} className="border-l-4 border-l-primary">
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                          <span className="flex items-center space-x-2">
-                            <IconComponent className="w-5 h-5" />
-                            <span>{punishment.title}</span>
-                          </span>
-                          <Badge variant="outline" className={getSeverityColor(punishment.severity)}>
-                            {getSeverityLabel(punishment.severity)}
-                          </Badge>
-                        </CardTitle>
-                        {punishment.description && (
-                          <p className="text-muted-foreground text-sm">{punishment.description}</p>
-                        )}
-                        <div className="flex items-center justify-between">
-                          <Badge variant="secondary" className="w-fit">
-                            {getCategoryLabel(punishment.category)}
-                          </Badge>
-                          <div className="flex items-center space-x-2">
-                            {isForSelf ? (
-                              <User className="w-4 h-4 text-muted-foreground" />
-                            ) : (
-                              <Crown className="w-4 h-4 text-primary" />
-                            )}
-                            <span className="text-sm text-muted-foreground">
-                              {isForSelf ? 'Pour moi' : 'Pour mon partenaire'}
-                            </span>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-xs text-muted-foreground">
-                          Créée le {format(new Date(punishment.created_at), 'PPP', { locale: fr })}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      )}
-
-      {/* Apply Punishment Dialog */}
-      <Dialog open={isApplyDialogOpen} onOpenChange={setIsApplyDialogOpen}>
+      {/* Assign Punishment Dialog */}
+      <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Appliquer une punition</DialogTitle>
+            <DialogTitle>Assigner une punition</DialogTitle>
           </DialogHeader>
-          {selectedPunishment && (
-            <div className="space-y-4">
-              <div className="p-4 border rounded-lg bg-destructive/5">
-                <h3 className="font-medium text-destructive">{selectedPunishment.title}</h3>
+          <div className="space-y-4">
+            {selectedPunishment && (
+              <div className="p-4 bg-muted rounded-lg">
+                <h4 className="font-semibold">{selectedPunishment.title}</h4>
                 {selectedPunishment.description && (
-                  <p className="text-sm text-muted-foreground mt-1">{selectedPunishment.description}</p>
+                  <p className="text-sm text-muted-foreground">{selectedPunishment.description}</p>
                 )}
               </div>
-              <div>
-                <Label htmlFor="points">Points à retirer</Label>
-                <Input
-                  id="points"
-                  type="number"
-                  min="0"
-                  value={pointsToDeduct}
-                  onChange={(e) => setPointsToDeduct(parseInt(e.target.value) || 0)}
-                  placeholder="Nombre de points à déduire"
-                />
-              </div>
-              <div>
-                <Label htmlFor="reason">Raison de la punition</Label>
-                <Textarea
-                  id="reason"
-                  value={punishmentReason}
-                  onChange={(e) => setPunishmentReason(e.target.value)}
-                  placeholder="Expliquez pourquoi cette punition est appliquée..."
-                />
-              </div>
-              <div className="flex space-x-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsApplyDialogOpen(false);
-                    setSelectedPunishment(null);
-                    setPointsToDeduct(0);
-                    setPunishmentReason('');
-                  }}
-                  className="flex-1"
-                >
-                  Annuler
-                </Button>
-                <Button
-                  onClick={handleApplyPunishment}
-                  disabled={
-                    applyPunishmentMutation.isPending || 
-                    pointsToDeduct <= 0 || 
-                    !punishmentReason.trim()
-                  }
-                  variant="destructive"
-                  className="flex-1"
-                >
-                  {applyPunishmentMutation.isPending ? "Application..." : "Appliquer"}
-                </Button>
-              </div>
+            )}
+            <div>
+              <Label htmlFor="notes">Notes (optionnel)</Label>
+              <Textarea
+                id="notes"
+                value={assignmentNotes}
+                onChange={(e) => setAssignmentNotes(e.target.value)}
+                placeholder="Instructions ou commentaires supplémentaires..."
+              />
             </div>
-          )}
+            <div className="flex space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsAssignDialogOpen(false);
+                  setSelectedPunishment(null);
+                  setAssignmentNotes('');
+                }}
+                className="flex-1"
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handleAssignPunishment}
+                disabled={assignPunishmentMutation.isPending}
+                className="flex-1"
+              >
+                {assignPunishmentMutation.isPending ? "Assignation..." : "Assigner"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

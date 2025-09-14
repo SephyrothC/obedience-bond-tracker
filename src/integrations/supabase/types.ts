@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.12 (cd3cf9e)"
@@ -327,6 +327,53 @@ export type Database = {
         }
         Relationships: []
       }
+      punishment_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string
+          assigned_to: string
+          completed_at: string | null
+          id: string
+          notes: string | null
+          punishment_id: string
+          status: string
+          validated_at: string | null
+          validated_by: string | null
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by: string
+          assigned_to: string
+          completed_at?: string | null
+          id?: string
+          notes?: string | null
+          punishment_id: string
+          status?: string
+          validated_at?: string | null
+          validated_by?: string | null
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string
+          assigned_to?: string
+          completed_at?: string | null
+          id?: string
+          notes?: string | null
+          punishment_id?: string
+          status?: string
+          validated_at?: string | null
+          validated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "punishment_assignments_punishment_id_fkey"
+            columns: ["punishment_id"]
+            isOneToOne: false
+            referencedRelation: "punishments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       punishments: {
         Row: {
           category: string | null
@@ -337,6 +384,7 @@ export type Database = {
           id: string
           is_active: boolean
           severity: string | null
+          status: string | null
           title: string
         }
         Insert: {
@@ -348,6 +396,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           severity?: string | null
+          status?: string | null
           title: string
         }
         Update: {
@@ -359,6 +408,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           severity?: string | null
+          status?: string | null
           title?: string
         }
         Relationships: [
@@ -386,6 +436,8 @@ export type Database = {
           reward_id: string
           status: string
           user_id: string
+          validated_at: string | null
+          validated_by: string | null
         }
         Insert: {
           id?: string
@@ -394,6 +446,8 @@ export type Database = {
           reward_id: string
           status?: string
           user_id: string
+          validated_at?: string | null
+          validated_by?: string | null
         }
         Update: {
           id?: string
@@ -402,6 +456,8 @@ export type Database = {
           reward_id?: string
           status?: string
           user_id?: string
+          validated_at?: string | null
+          validated_by?: string | null
         }
         Relationships: []
       }
